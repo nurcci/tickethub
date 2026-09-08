@@ -1,0 +1,11 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["migrations"]
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I"]  # pycodestyle, pyflakes, bugbear, import-sort
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tickethub.settings"
+python_files = ["tests.py", "test_*.py"]
