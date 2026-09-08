@@ -32,13 +32,40 @@ services:
     command: >
       sh -c "python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8000"
-    environment:
+    environment: &app_env
       SECRET_KEY: dev-secret-key-not-for-production
       DEBUG: "true"
       ALLOWED_HOSTS: localhost,127.0.0.1
       DATABASE_URL: postgresql://tickethub:tickethub@db:5432/tickethub
+      REDIS_URL: redis://redis:6379/0
     ports:
       - "8002:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./events:/app/events
+      - ./tickethub:/app/tickethub
+
+  worker:
+    build: .
+    command: celery -A tickethub worker -l info
+    environment: *app_env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./events:/app/events
+      - ./tickethub:/app/tickethub
+
+  beat:
+    build: .
+    command: celery -A tickethub beat -l info
+    environment: *app_env
     depends_on:
       db:
         condition: service_healthy

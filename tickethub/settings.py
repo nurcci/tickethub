@@ -138,3 +138,29 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Redis + Celery (неделя 3: блокировка мест, фоновая очистка просроченных
+# холдов). REDIS_URL используется и напрямую (events/redis_client.py —
+# SETNX для брони места), и как брокер/бэкенд Celery.
+
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+
+# На сколько секунд удерживается место после успешного SETNX в Redis —
+# и на этот же интервал ориентируется Celery beat при чистке зависших
+# HOLD-заказов в базе (единый источник правды для обоих механизмов).
+SEAT_HOLD_TTL_SECONDS = int(os.environ.get("SEAT_HOLD_TTL_SECONDS", "300"))
+
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+
+CELERY_BEAT_SCHEDULE = {
+    "release-expired-seat-holds": {
+        "task": "events.tasks.release_expired_holds",
+        "schedule": 60.0,  # раз в минуту — см. диаграмму в README
+    },
+}
+

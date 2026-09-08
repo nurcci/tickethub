@@ -8,13 +8,16 @@ async for, values_list().aiterator()) без обёрток вроде sync_to_a
 
 import datetime
 
+from django.conf import settings
+from django.db import IntegrityError
 from django.http import Http404
 from django.shortcuts import aget_object_or_404
-from ninja import Query, Router
+from ninja import Query, Router, Status
 from ninja.pagination import PageNumberPagination, paginate
 
 from .models import Event, Order, Seat
-from .schemas import EventOut, EventSeatMapOut, SeatOut
+from .redis_client import get_redis, seat_hold_key
+from .schemas import ErrorOut, EventOut, EventSeatMapOut, HoldSeatIn, HoldSeatOut, SeatOut
 
 router = Router(tags=["events"])
 
@@ -72,3 +75,53 @@ async def get_seat_map(request, event_id: int):
     ]
 
     return EventSeatMapOut(event=event, seats=seats)
+
+
+@router.post("/{event_id}/seats/{seat_id}/hold", response={200: HoldSeatOut, 409: ErrorOut})
+async def hold_seat(request, event_id: int, seat_id: int, payload: HoldSeatIn):
+    """Забронировать место.
+
+    Порядок принципиален: сначала атомарная блокировка в Redis (SETNX —
+    "установить, только если ключа ещё нет", с TTL), и только если она
+    получена — запись в базу. Если место уже удерживается, до базы дело
+    вообще не доходит: отказ приходит за миллисекунды, а не после похода
+    в Postgres и ошибки уникальности. UniqueConstraint на Order (неделя 1)
+    при этом никуда не делся — это второй, более медленный, но абсолютный
+    рубеж защиты на случай гонки внутри самой записи в БД.
+    """
+    event = await aget_object_or_404(Event.objects.select_related("venue"), id=event_id)
+    seat = await aget_object_or_404(Seat, id=seat_id, venue_id=event.venue_id)
+
+    key = seat_hold_key(event_id, seat_id)
+    async with get_redis() as redis_client:
+        acquired = await redis_client.set(
+            key, payload.buyer_email, nx=True, ex=settings.SEAT_HOLD_TTL_SECONDS
+        )
+
+        if not acquired:
+            return Status(
+                409,
+                ErrorOut(detail="Место уже удерживается другим покупателем, попробуйте позже"),
+            )
+
+        try:
+            order = await Order.objects.acreate(
+                event=event, seat=seat, buyer_email=payload.buyer_email
+            )
+        except IntegrityError:
+            # Место уже забронировано в обход Redis (например, платный заказ
+            # существовал ещё до этой блокировки) — откатываем ключ и отказываем.
+            await redis_client.delete(key)
+            return Status(409, ErrorOut(detail="Место уже забронировано"))
+
+    return Status(
+        200,
+        HoldSeatOut(
+            order_id=order.id,
+            status=order.status,
+            event_id=event.id,
+            seat_id=seat.id,
+            hold_expires_at=order.created_at
+            + datetime.timedelta(seconds=settings.SEAT_HOLD_TTL_SECONDS),
+        ),
+    )

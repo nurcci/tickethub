@@ -23,11 +23,21 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
     env:
       SECRET_KEY: ci-secret-key
       DEBUG: "false"
       ALLOWED_HOSTS: localhost,127.0.0.1
       DATABASE_URL: postgresql://tickethub:tickethub@localhost:5432/tickethub
+      REDIS_URL: redis://localhost:6379/0
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

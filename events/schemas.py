@@ -34,3 +34,19 @@ class SeatOut(Schema):
 class EventSeatMapOut(Schema):
     event: EventOut
     seats: list[SeatOut]
+
+
+class HoldSeatIn(Schema):
+    buyer_email: str
+
+
+class HoldSeatOut(Schema):
+    order_id: int
+    status: str
+    event_id: int
+    seat_id: int
+    hold_expires_at: datetime.datetime
+
+
+class ErrorOut(Schema):
+    detail: str

@@ -6,11 +6,11 @@
 забронировать одно и то же место.
 
 ## Статус
-Недели 1-2 — фундамент (модели, Django Admin, Docker Compose) и публичный API на Django Ninja (async, пагинация, фильтры, Swagger).
+Недели 1-3 — фундамент, публичный API (Django Ninja) и защита от овербукинга в реальном времени: SETNX-блокировка места в Redis (TTL 5 минут) + Celery beat, снимающий просроченные холды.
 
 ## Стек
-Python, Django, PostgreSQL, Redis, Celery (со 2-й недели), Docker / Docker
-Compose, Pytest, ruff, GitHub Actions.
+Python, Django, PostgreSQL, Redis, Celery, Docker / Docker Compose,
+Pytest, ruff, GitHub Actions.
 
 ## Модели
 `Venue` (площадка) → `Seat` (физическое место в зале) и `Event`
@@ -19,9 +19,11 @@ Compose, Pytest, ruff, GitHub Actions.
 
 Защита от овербукинга — на уровне БД уже сейчас: `UniqueConstraint` не даёт
 создать два активных заказа на одно место в рамках одного мероприятия.
-С недели 3 к этому добавится блокировка в Redis с TTL — быстрая проверка
-ещё до похода в базу, чтобы пользователь получал мгновенный ответ
-"место занято", а не ждал ошибки уникальности.
+С недели 3 к этому добавилась блокировка в Redis (SETNX, TTL 5 минут) —
+быстрая проверка ещё до похода в базу: `POST /api/events/{id}/seats/{id}/hold`.
+Если ключ уже занят, отказ приходит мгновенно, без единого запроса к Postgres.
+Просроченные холды (покупатель закрыл вкладку) раз в минуту снимает
+Celery beat — задача `events.tasks.release_expired_holds`.
 
 ## Запуск локально
 
