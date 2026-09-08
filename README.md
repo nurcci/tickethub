@@ -6,7 +6,7 @@
 забронировать одно и то же место.
 
 ## Статус
-Неделя 1 — фундамент: модели, Django Admin, Docker Compose.
+Недели 1-2 — фундамент (модели, Django Admin, Docker Compose) и публичный API на Django Ninja (async, пагинация, фильтры, Swagger).
 
 ## Стек
 Python, Django, PostgreSQL, Redis, Celery (со 2-й недели), Docker / Docker
@@ -29,6 +29,8 @@ Compose, Pytest, ruff, GitHub Actions.
     docker compose exec web python manage.py createsuperuser
 
 Django Admin: http://localhost:8002/admin/
+
+Swagger-документация API: http://localhost:8002/api/docs
 
 ## Тесты
 
