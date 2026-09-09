@@ -48,6 +48,7 @@ services:
     volumes:
       - ./events:/app/events
       - ./tickethub:/app/tickethub
+      - ./media:/app/media
 
   worker:
     build: .
@@ -61,6 +62,7 @@ services:
     volumes:
       - ./events:/app/events
       - ./tickethub:/app/tickethub
+      - ./media:/app/media
 
   beat:
     build: .
