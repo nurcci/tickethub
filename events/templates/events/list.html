@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}TicketHub — мероприятия{% endblock %}
+{% block content %}
+  <h1>Мероприятия</h1>
+
+  {% if events %}
+    <div class="grid">
+      {% for event in events %}
+        <a class="card" href="{% url 'event_detail' event.id %}">
+          <div class="card-date">{{ event.starts_at|date:"d.m.Y H:i" }}</div>
+          <div class="card-title">{{ event.title }}</div>
+          <div class="card-venue">{{ event.venue.name }}, {{ event.venue.city }}</div>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="empty">Пока ничего не запланировано.</p>
+  {% endif %}
+{% endblock %}

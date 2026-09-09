@@ -1,4 +1,4 @@
-"""Тесты недели 3: Redis-блокировка мест и очистка просроченных холдов."""
+"""Redis-блокировка мест и очистка просроченных холдов."""
 
 import asyncio
 import datetime
@@ -75,9 +75,9 @@ def test_hold_seat_rejects_second_hold_before_first_expires(client, event, seat)
 
 @pytest.mark.django_db(transaction=True)
 async def test_only_one_of_two_concurrent_holds_succeeds(event, seat):
-    """Ядро недели 3: два по-настоящему параллельных запроса на одно и то
-    же место. Спор решается атомарным SETNX в Redis — ровно один клиент
-    получает бронь, второй мгновенно получает 409."""
+    """Два по-настоящему параллельных запроса на одно и то же место.
+    Спор решается атомарным SETNX в Redis — ровно один клиент получает
+    бронь, второй мгновенно получает 409."""
     url = f"/api/events/{event.id}/seats/{seat.id}/hold"
     client_a, client_b = AsyncClient(), AsyncClient()
 

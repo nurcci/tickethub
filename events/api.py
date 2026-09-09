@@ -1,9 +1,7 @@
-"""Публичный API на Django Ninja. Роутер подключается в tickethub/urls.py.
+"""Публичный API мероприятий и мест. Роутер подключается в tickethub/urls.py.
 
-Эндпоинты асинхронные — используем нативный async ORM Django (aget,
-async for, values_list().aiterator()) без обёрток вроде sync_to_async,
-там, где это API размера "список / карта мест" оправдано: запросы не
-блокируют event loop сервера, пока ждут ответа от базы.
+Всё асинхронное — прямо через async ORM (aget, async for), без
+sync_to_async.
 """
 
 import datetime
@@ -81,13 +79,10 @@ async def get_seat_map(request, event_id: int):
 async def hold_seat(request, event_id: int, seat_id: int, payload: HoldSeatIn):
     """Забронировать место.
 
-    Порядок принципиален: сначала атомарная блокировка в Redis (SETNX —
-    "установить, только если ключа ещё нет", с TTL), и только если она
-    получена — запись в базу. Если место уже удерживается, до базы дело
-    вообще не доходит: отказ приходит за миллисекунды, а не после похода
-    в Postgres и ошибки уникальности. UniqueConstraint на Order (неделя 1)
-    при этом никуда не делся — это второй, более медленный, но абсолютный
-    рубеж защиты на случай гонки внутри самой записи в БД.
+    Сначала атомарный SETNX в Redis — если место уже держат, отказ
+    приходит мгновенно, до базы дело не доходит. Если ключ свободен —
+    только тогда пишем Order. UniqueConstraint на Order — второй,
+    более медленный рубеж защиты на случай гонки мимо Redis.
     """
     event = await aget_object_or_404(Event.objects.select_related("venue"), id=event_id)
     seat = await aget_object_or_404(Seat, id=seat_id, venue_id=event.venue_id)
@@ -109,8 +104,7 @@ async def hold_seat(request, event_id: int, seat_id: int, payload: HoldSeatIn):
                 event=event, seat=seat, buyer_email=payload.buyer_email
             )
         except IntegrityError:
-            # Место уже забронировано в обход Redis (например, платный заказ
-            # существовал ещё до этой блокировки) — откатываем ключ и отказываем.
+            # успели создать заказ мимо Redis — откатываем ключ и отказываем
             await redis_client.delete(key)
             return Status(409, ErrorOut(detail="Место уже забронировано"))
 

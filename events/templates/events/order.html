@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Заказ №{{ order.id }} — TicketHub{% endblock %}
+{% block content %}
+  <a href="{% url 'event_detail' order.event_id %}" class="back-link">← к мероприятию</a>
+
+  <h1>Заказ №{{ order.id }}</h1>
+  <p class="meta">{{ order.event.title }} · ряд {{ order.seat.row }}, место {{ order.seat.number }}</p>
+  <p class="meta">{{ order.buyer_email }}</p>
+
+  <div id="order-status" class="order-box" data-order-id="{{ order.id }}" data-status="{{ order.status }}">
+    <div class="status-badge status-{{ order.status|lower }}" id="status-badge">{{ order.get_status_display }}</div>
+
+    <div id="pay-block" {% if order.status != "HOLD" %}hidden{% endif %}>
+      <button id="pay-button" class="btn">Оплатить</button>
+    </div>
+
+    <div id="processing-block" hidden>
+      <p class="meta">Обрабатываем оплату…</p>
+    </div>
+
+    <div id="ticket-block" {% if order.status != "PAID" %}hidden{% endif %}>
+      <p class="meta">Билет готов.</p>
+      <a id="ticket-link" class="btn" href="{{ order.ticket.pdf_file.url|default:'' }}">Скачать PDF</a>
+    </div>
+  </div>
+
+  <script src="{% static 'js/app.js' %}"></script>
+  <script>TicketHub.initOrderPage();</script>
+{% endblock %}

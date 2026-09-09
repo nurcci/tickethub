@@ -1,30 +1,21 @@
-"""Redis-клиенты: асинхронный — для API-эндпоинтов (Django Ninja),
-синхронный — для Celery-задач (Celery worker/beat синхронные по своей
-природе, оборачивать их в asyncio смысла нет).
-"""
+"""Redis-клиенты: асинхронный для API, синхронный для Celery (воркер и
+beat синхронные по своей природе)."""
 
 import redis
 import redis.asyncio as aioredis
 from django.conf import settings
 
-# Синхронный клиент (Celery) живёт весь процесс — один пул на него
-# переиспользуется корректно, event loop тут ни при чём.
+# один пул на процесс, для Celery это безопасно
 _sync_pool = redis.ConnectionPool.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 def get_redis() -> aioredis.Redis:
-    """Новое подключение на каждый вызов — используйте как `async with
-    get_redis() as r:`, чтобы соединение закрывалось само.
+    """Новое подключение на каждый вызов: `async with get_redis() as r:`.
 
-    Общий connection pool на уровне модуля тут специально не заводим:
-    он бы кэшировал живые соединения между вызовами, а любой код, где
-    async-view дёргается не из одного долгоживущего ASGI event loop
-    (например, синхронный Django test client в тестах — на каждый вызов
-    поднимает свой event loop), рано или поздно наткнётся на "Event loop
-    is closed" при попытке переиспользовать соединение из закрытого loop.
-    В реальном ASGI-деплое (uvicorn) event loop один на процесс, так что
-    на проде это не бьёт по производительности — только чуть больше
-    накладных расходов в тестах.
+    Без общего пула на уровне модуля — иначе в тестах (где каждый вызов
+    поднимает свой event loop) рано или поздно словим "Event loop is
+    closed". В реальном деплое (один loop на процесс) это не бьёт по
+    производительности.
     """
     return aioredis.from_url(settings.REDIS_URL, decode_responses=True)
 

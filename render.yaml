@@ -1,12 +1,10 @@
-# Render Blueprint (неделя 5) — бесплатный деплой одним сервисом.
+# Render Blueprint — бесплатный деплой одним сервисом.
 #
-# Postgres и Redis — НЕ здесь: Render либо не даёт их бесплатно вовсе
-# (Background Worker под Celery — платный), либо даёт с истечением через
-# 30 дней (Postgres). Поэтому база — на Neon (бесплатно навсегда,
-# neon.com), а Redis — на Upstash (бесплатно навсегда, upstash.com);
-# их DATABASE_URL/REDIS_URL прописываются вручную в Render Dashboard
-# (sync: false ниже) после создания обоих. Подробный порядок действий —
-# в README → "Деплой".
+# Postgres и Redis — не здесь: у Render либо нет бесплатного варианта
+# (Background Worker под Celery — платный), либо он истекает через
+# 30 дней (Postgres). База — на Neon, Redis — на Upstash, оба бесплатны
+# навсегда; их DATABASE_URL/REDIS_URL прописываются руками в Render
+# Dashboard (sync: false ниже). Порядок действий — в README → «Деплой».
 services:
   - type: web
     name: tickethub

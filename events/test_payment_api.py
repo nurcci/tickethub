@@ -1,4 +1,4 @@
-"""Тесты HTTP-слоя недели 4: POST /orders/{id}/pay и GET /orders/{id}.
+"""Тесты HTTP-слоя оплаты: POST /orders/{id}/pay и GET /orders/{id}.
 
 confirm_payment_task.delay мокаем — эндпоинт должен только поставить
 таску в очередь и сразу ответить 202, реальное выполнение таски уже

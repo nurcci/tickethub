@@ -20,9 +20,8 @@ from dotenv import load_dotenv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Локально без Docker переменные читаются из .env; в Docker Compose /
-# на проде их задаёт сама платформа — .env туда просто не попадает
-# (он в .gitignore), поэтому load_dotenv тут ничего не сломает.
+# .env только для локального запуска без Docker — в compose/на проде
+# переменные задаёт сама платформа, .env туда не попадает (в .gitignore)
 load_dotenv(BASE_DIR / ".env")
 
 
@@ -39,28 +38,21 @@ DEBUG = os.environ.get("DEBUG", "true").lower() == "true"
 
 ALLOWED_HOSTS = [h for h in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h]
 
-# Нужно для Django Admin (форм с CSRF) на реальном домене деплоя — без
-# этого POST-запросы с боевого хоста Django отклоняет как подозрительные
-# (Origin не совпадает ни с одним доверенным). Локально пусто — не мешает.
+# для Django Admin на реальном домене — иначе POST с боевого хоста
+# Django отклонит как подозрительный. Локально пусто, не мешает.
 CSRF_TRUSTED_ORIGINS = [
     o for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if o
 ]
 
-# Прод-харденинг (неделя 5): включаем только когда DEBUG=False, чтобы
-# не мешать локальной разработке (там всё по HTTP, редирект на HTTPS
-# сломал бы docker-compose). SECURE_PROXY_SSL_HEADER обязателен — Render
-# (и большинство PaaS) терминирует TLS на своём прокси и проксирует
-# дальше по обычному HTTP, добавляя заголовок X-Forwarded-Proto: без
-# этой строки Django решит, что каждый запрос небезопасен, и уйдёт
-# в бесконечный редирект на https.
+# прод-харденинг — только при DEBUG=False, иначе редирект на HTTPS
+# сломает локальный docker compose (там всё по HTTP)
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+    # Render терминирует TLS на прокси и шлёт дальше по HTTP с этим
+    # заголовком — без него Django уйдёт в бесконечный редирект на https
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-    # Консервативное значение (1 день, без includeSubDomains) — HSTS
-    # трудно откатить для реальных пользователей, если что-то пойдёт не
-    # так с HTTPS; для пет-проекта с одним поддоменом этого достаточно.
     SECURE_HSTS_SECONDS = 60 * 60 * 24
 
 
@@ -78,10 +70,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    # Отдаёт собранную статику (admin CSS/JS и т.п.) прямо из gunicorn-
-    # процесса, без отдельного nginx — то, что нужно для однопроцессного
-    # бесплатного деплоя (неделя 5). Должен идти сразу после
-    # SecurityMiddleware — так требует сам WhiteNoise.
+    # раздаёт статику прямо из gunicorn, без отдельного nginx —
+    # обязательно сразу после SecurityMiddleware
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -112,13 +102,8 @@ TEMPLATES = [
 WSGI_APPLICATION = "tickethub.wsgi.application"
 
 
-# Database
-# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-#
-# DATABASE_URL приходит из Docker Compose / платформы деплоя
-# (postgresql://user:pass@host:port/name). Без неё — локальный sqlite,
-# чтобы `python manage.py check` и быстрые эксперименты работали
-# без поднятого Postgres.
+# DATABASE_URL приходит из Docker Compose / платформы деплоя.
+# Без неё — локальный sqlite, для быстрых экспериментов без поднятого Postgres.
 
 DATABASES = {
     "default": dj_database_url.config(
@@ -165,14 +150,10 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# Только для прод-режима (DEBUG=False): CompressedManifestStaticFilesStorage
-# требует, чтобы collectstatic уже отработал и создал манифест хэшей
-# файлов (это делает bin/start-prod.sh перед стартом gunicorn) — иначе
-# любой {% static %} в шаблоне (например, в самой Django Admin) упадёт
-# с ошибкой "не найден в манифесте". Локально collectstatic никогда не
-# запускается (dev-сервер сам раздаёт статику как есть), поэтому здесь
-# оставляем стандартное поведение Django, чтобы не сломать `docker
-# compose up`.
+# CompressedManifestStaticFilesStorage требует, чтобы collectstatic уже
+# отработал и создал манифест (bin/start-prod.sh делает это перед
+# gunicorn) — локально collectstatic не запускается, поэтому включаем
+# только в проде, иначе любой {% static %} упадёт с "не найден в манифесте"
 if not DEBUG:
     STORAGES = {
         # MEDIA (PDF-билеты) — обычная файловая система, без изменений.
@@ -186,9 +167,8 @@ if not DEBUG:
         },
     }
 
-# Сгенерированные PDF-билеты (неделя 4, events/services.py). В деве и
-# в этом дев-контейнере хранятся прямо на диске — для реального продакшена
-# сюда бы встал S3-совместимый storage, но для пет-проекта это лишнее.
+# PDF-билеты (events/services.py) хранятся прямо на диске — для
+# настоящего продакшена тут был бы S3, но для пет-проекта это лишнее
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
@@ -198,15 +178,12 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
-# Redis + Celery (неделя 3: блокировка мест, фоновая очистка просроченных
-# холдов). REDIS_URL используется и напрямую (events/redis_client.py —
-# SETNX для брони места), и как брокер/бэкенд Celery.
-
+# REDIS_URL используется и напрямую (SETNX для брони места), и как
+# брокер/бэкенд Celery.
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
-# На сколько секунд удерживается место после успешного SETNX в Redis —
-# и на этот же интервал ориентируется Celery beat при чистке зависших
-# HOLD-заказов в базе (единый источник правды для обоих механизмов).
+# сколько секунд держится место после SETNX — на это же значение
+# ориентируется beat при чистке зависших HOLD в базе
 SEAT_HOLD_TTL_SECONDS = int(os.environ.get("SEAT_HOLD_TTL_SECONDS", "300"))
 
 CELERY_BROKER_URL = REDIS_URL
@@ -219,14 +196,12 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_BEAT_SCHEDULE = {
     "release-expired-seat-holds": {
         "task": "events.tasks.release_expired_holds",
-        "schedule": 60.0,  # раз в минуту — см. диаграмму в README
+        "schedule": 60.0,
     },
 }
 
-# Managed Redis (например, Upstash — неделя 5) отдаёт TLS-адрес
-# rediss://; redis-py сам понимает эту схему для прямых подключений
-# (events/redis_client.py), а вот Celery для транспорта на Redis нужно
-# явно попросить SSL, иначе брокер не подключится.
+# managed Redis (Upstash) отдаёт TLS-адрес rediss:// — redis-py сам его
+# понимает для прямых подключений, а вот Celery нужно попросить явно
 if REDIS_URL.startswith("rediss://"):
     CELERY_BROKER_USE_SSL = {"ssl_cert_reqs": ssl.CERT_REQUIRED}
     CELERY_REDIS_BACKEND_USE_SSL = {"ssl_cert_reqs": ssl.CERT_REQUIRED}

@@ -1,8 +1,5 @@
-"""Эндпоинты жизненного цикла уже созданного заказа: оплата и статус.
-
-Отдельный роутер от events/api.py: там — просмотр мероприятий и мест
-(публичный каталог), здесь — конкретный заказ конкретного покупателя.
-"""
+"""Жизненный цикл заказа: оплата и статус. Отдельный роутер от api.py —
+там каталог мероприятий, здесь — уже конкретный заказ."""
 
 from asgiref.sync import sync_to_async
 from django.shortcuts import aget_object_or_404
@@ -17,12 +14,8 @@ router = Router(tags=["orders"])
 
 @router.post("/{order_id}/pay", response={202: PaymentAcceptedOut, 404: ErrorOut, 409: ErrorOut})
 async def pay_order(request, order_id: int):
-    """Инициирует оплату заказа.
-
-    Подтверждение происходит асинхронно в Celery-воркере
-    (confirm_payment_task) — эндпоинт сразу отвечает 202 Accepted,
-    финальный статус и билет смотрите через GET /orders/{id}.
-    """
+    """Инициирует оплату. Подтверждение идёт асинхронно в воркере —
+    отвечаем 202, финальный статус и билет смотреть через GET /orders/{id}."""
     order = await aget_object_or_404(Order, id=order_id)
     if order.status != Order.Status.HOLD:
         return Status(
@@ -34,16 +27,14 @@ async def pay_order(request, order_id: int):
                 )
             ),
         )
-    # .delay() — синхронный сетевой вызов к брокеру (Redis); в async-view
-    # оборачиваем в sync_to_async, чтобы не блокировать event loop.
+    # .delay() синхронный (поход в Redis), поэтому в async-view через sync_to_async
     await sync_to_async(confirm_payment_task.delay)(order_id)
     return Status(202, PaymentAcceptedOut(order_id=order.id, status=order.status))
 
 
 @router.get("/{order_id}", response=OrderOut)
 async def get_order(request, order_id: int):
-    """Статус заказа и, если оплата подтверждена и билет уже выпущен —
-    его код и ссылка на PDF."""
+    """Статус заказа + код и ссылка на билет, если он уже выпущен."""
     order = await aget_object_or_404(
         Order.objects.select_related("event", "seat"), id=order_id
     )

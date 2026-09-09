@@ -13,8 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Локально (docker-compose.yml) команда для каждого сервиса (web/worker/
-# beat) переопределяется явно — эта CMD ниже реально используется только
-# при деплое (неделя 5, см. render.yaml → dockerCommand и bin/start-prod.sh),
-# либо если образ запустить напрямую через `docker run` без compose.
+# в docker-compose.yml команда каждого сервиса переопределяется явно —
+# эта CMD используется только при деплое (см. render.yaml) или при
+# запуске образа напрямую
 CMD ["sh", "bin/start-prod.sh"]

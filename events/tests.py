@@ -39,8 +39,8 @@ def test_order_can_be_created_for_seat(event, seat):
 
 def test_cannot_double_book_same_seat_for_same_event(event, seat):
     """Ядро продукта: второй активный заказ на то же место того же
-    мероприятия база данных создать не даст — это и есть защита от
-    овербукинга на уровне БД, до всякого Redis (появится на неделе 3)."""
+    мероприятия база данных создать не даст — защита от овербукинга
+    на уровне БД, до всякого Redis."""
     Order.objects.create(event=event, seat=seat, buyer_email="first@example.com")
     with pytest.raises(IntegrityError), transaction.atomic():
         Order.objects.create(event=event, seat=seat, buyer_email="second@example.com")

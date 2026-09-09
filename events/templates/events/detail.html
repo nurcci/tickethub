@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ event.title }} — TicketHub{% endblock %}
+{% block content %}
+  <a href="{% url 'event_list' %}" class="back-link">← все мероприятия</a>
+
+  <h1>{{ event.title }}</h1>
+  <p class="meta">{{ event.starts_at|date:"d.m.Y H:i" }} · {{ event.venue.name }}, {{ event.venue.city }}</p>
+  {% if event.description %}<p class="description">{{ event.description }}</p>{% endif %}
+
+  <div class="email-bar">
+    <label for="buyer-email">Email для брони</label>
+    <input type="email" id="buyer-email" placeholder="you@example.com" autocomplete="email">
+  </div>
+
+  <div id="hold-message" class="message" hidden></div>
+
+  <div class="legend">
+    <span><i class="dot dot-free"></i> свободно</span>
+    <span><i class="dot dot-taken"></i> занято</span>
+  </div>
+
+  <div class="seat-map" data-event-id="{{ event.id }}">
+    {% for row_number, seats in rows %}
+      <div class="seat-row">
+        <span class="seat-row-label">{{ row_number }}</span>
+        {% for seat in seats %}
+          <button
+            class="seat {% if not seat.is_available %}seat-taken{% endif %}"
+            data-seat-id="{{ seat.id }}"
+            {% if not seat.is_available %}disabled{% endif %}
+          >{{ seat.number }}</button>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+
+  <script src="{% static 'js/app.js' %}"></script>
+  <script>TicketHub.initSeatMap();</script>
+{% endblock %}
