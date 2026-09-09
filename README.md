@@ -5,15 +5,18 @@
 проекта — честная защита от овербукинга: два человека физически не могут
 забронировать одно и то же место.
 
+**Живое демо:** _(появится после деплоя — см. раздел «Деплой» ниже)_
+
 ## Статус
-Недели 1-4 — фундамент, публичный API (Django Ninja), защита от овербукинга
-в реальном времени (Redis SETNX + Celery beat) и полный жизненный цикл
-заказа: оплата и асинхронный выпуск PDF-билета через Celery, с ретраями
-при сбое генерации.
+Недели 1-5 — фундамент, публичный API (Django Ninja), защита от овербукинга
+в реальном времени (Redis SETNX + Celery beat), полный жизненный цикл
+заказа (оплата и асинхронный выпуск PDF-билета через Celery) и бесплатный
+прод-деплой.
 
 ## Стек
-Python, Django, PostgreSQL, Redis, Celery, reportlab (PDF), Docker / Docker
-Compose, Pytest + factory_boy, ruff, GitHub Actions.
+Python, Django, PostgreSQL, Redis, Celery, reportlab (PDF), gunicorn,
+whitenoise, Docker / Docker Compose, Pytest + factory_boy, Locust, ruff,
+GitHub Actions, Render / Neon / Upstash.
 
 ## Модели
 `Venue` (площадка) → `Seat` (физическое место в зале) и `Event`
@@ -56,3 +59,57 @@ Swagger-документация API: http://localhost:8002/api/docs
 
     pip install -r requirements-dev.txt
     pytest -v
+
+## Нагрузочное тестирование (неделя 5)
+
+    pip install locust
+    locust -f locustfile.py --host=http://localhost:8002
+
+Дальше открыть http://localhost:8089 и запустить прогон. Два сценария:
+обычное чтение (список мероприятий, карта мест — большинство трафика в
+реальном сервисе) и намеренная гонка множества «покупателей» за одно и то
+же место — под нагрузкой ещё раз подтверждает, что защита от овербукинга
+не проседает при параллельных запросах (см. также `events/test_hold.py`,
+где то же самое проверяется двумя корутинами в pytest).
+
+## Деплой (неделя 5)
+
+Бесплатно, без карты, без ограничения по времени — тремя сервисами:
+
+- **Render** (render.yaml, Blueprint) — веб-процесс (gunicorn). Бесплатный
+  тариф Render не даёт отдельный процесс под Celery worker (Background
+  Worker там платный, от $7/мес) — поэтому worker и beat запускаются в
+  фоне того же контейнера, что и веб-сервер (`bin/start-prod.sh`). Это
+  осознанный компромисс ради $0 хостинга для пет-проекта: в
+  docker-compose.yml (и в реальном проде) это три независимых процесса,
+  масштабируемых по отдельности.
+- **Neon** (neon.com) — PostgreSQL, бесплатно навсегда (не триал), без
+  карты.
+- **Upstash** (upstash.com) — Redis, бесплатно навсегда, без карты.
+
+Порядок действий:
+
+1. **Neon**: зарегистрироваться → создать проект → скопировать
+   connection string (вида `postgresql://...?sslmode=require`).
+2. **Upstash**: зарегистрироваться → создать Redis-базу (регион — любой
+   ближайший к региону Render) → скопировать TLS-адрес
+   (`rediss://...`), НЕ обычный `redis://`.
+3. **Render**: зарегистрироваться → New → Blueprint → подключить репозиторий
+   `nurcci/tickethub` — Render сам найдёт `render.yaml` и предложит создать
+   сервис.
+4. В Render Dashboard → Environment для сервиса `tickethub` задать:
+   `DATABASE_URL` (из Neon), `REDIS_URL` (из Upstash, `rediss://`),
+   `DJANGO_SUPERUSER_USERNAME` / `_EMAIL` / `_PASSWORD` (для первого
+   входа в Admin — бесплатный тариф Render не даёт Shell, поэтому
+   суперюзер создаётся автоматически при старте, см.
+   `bin/start-prod.sh`).
+5. Deploy. После первого успешного деплоя Render покажет присвоенный
+   домен (`<имя>.onrender.com`) — вписать его в `ALLOWED_HOSTS` и
+   `CSRF_TRUSTED_ORIGINS` (в форматe `https://<имя>.onrender.com`) и
+   передеплоить (Manual Deploy).
+6. Готово: `https://<имя>.onrender.com/` редиректит на Swagger,
+   `/admin/` — Django Admin с созданным суперюзером.
+
+Бесплатный веб-сервис Render засыпает после 15 минут без запросов и
+просыпается ~30-60 секунд на первый запрос — ожидаемое поведение
+бесплатного демо, не баг.

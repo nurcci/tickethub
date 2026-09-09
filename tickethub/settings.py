@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 import os
+import ssl
 from pathlib import Path
 
 import dj_database_url
@@ -38,6 +39,30 @@ DEBUG = os.environ.get("DEBUG", "true").lower() == "true"
 
 ALLOWED_HOSTS = [h for h in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h]
 
+# Нужно для Django Admin (форм с CSRF) на реальном домене деплоя — без
+# этого POST-запросы с боевого хоста Django отклоняет как подозрительные
+# (Origin не совпадает ни с одним доверенным). Локально пусто — не мешает.
+CSRF_TRUSTED_ORIGINS = [
+    o for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if o
+]
+
+# Прод-харденинг (неделя 5): включаем только когда DEBUG=False, чтобы
+# не мешать локальной разработке (там всё по HTTP, редирект на HTTPS
+# сломал бы docker-compose). SECURE_PROXY_SSL_HEADER обязателен — Render
+# (и большинство PaaS) терминирует TLS на своём прокси и проксирует
+# дальше по обычному HTTP, добавляя заголовок X-Forwarded-Proto: без
+# этой строки Django решит, что каждый запрос небезопасен, и уйдёт
+# в бесконечный редирект на https.
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    # Консервативное значение (1 день, без includeSubDomains) — HSTS
+    # трудно откатить для реальных пользователей, если что-то пойдёт не
+    # так с HTTPS; для пет-проекта с одним поддоменом этого достаточно.
+    SECURE_HSTS_SECONDS = 60 * 60 * 24
+
 
 # Application definition
 
@@ -53,6 +78,11 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Отдаёт собранную статику (admin CSS/JS и т.п.) прямо из gunicorn-
+    # процесса, без отдельного nginx — то, что нужно для однопроцессного
+    # бесплатного деплоя (неделя 5). Должен идти сразу после
+    # SecurityMiddleware — так требует сам WhiteNoise.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -133,6 +163,28 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Только для прод-режима (DEBUG=False): CompressedManifestStaticFilesStorage
+# требует, чтобы collectstatic уже отработал и создал манифест хэшей
+# файлов (это делает bin/start-prod.sh перед стартом gunicorn) — иначе
+# любой {% static %} в шаблоне (например, в самой Django Admin) упадёт
+# с ошибкой "не найден в манифесте". Локально collectstatic никогда не
+# запускается (dev-сервер сам раздаёт статику как есть), поэтому здесь
+# оставляем стандартное поведение Django, чтобы не сломать `docker
+# compose up`.
+if not DEBUG:
+    STORAGES = {
+        # MEDIA (PDF-билеты) — обычная файловая система, без изменений.
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        # Сжатая + версионированная (по хэшу в имени файла — безопасный
+        # долгий Cache-Control) статика через WhiteNoise.
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
 
 # Сгенерированные PDF-билеты (неделя 4, events/services.py). В деве и
 # в этом дев-контейнере хранятся прямо на диске — для реального продакшена
@@ -170,3 +222,11 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": 60.0,  # раз в минуту — см. диаграмму в README
     },
 }
+
+# Managed Redis (например, Upstash — неделя 5) отдаёт TLS-адрес
+# rediss://; redis-py сам понимает эту схему для прямых подключений
+# (events/redis_client.py), а вот Celery для транспорта на Redis нужно
+# явно попросить SSL, иначе брокер не подключится.
+if REDIS_URL.startswith("rediss://"):
+    CELERY_BROKER_USE_SSL = {"ssl_cert_reqs": ssl.CERT_REQUIRED}
+    CELERY_REDIS_BACKEND_USE_SSL = {"ssl_cert_reqs": ssl.CERT_REQUIRED}

@@ -13,6 +13,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Прод-запуск через gunicorn появится на неделе 5 (CI/CD и эксплуатация).
-# Пока — dev-сервер Django, его же переопределяет docker-compose.yml.
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+# Локально (docker-compose.yml) команда для каждого сервиса (web/worker/
+# beat) переопределяется явно — эта CMD ниже реально используется только
+# при деплое (неделя 5, см. render.yaml → dockerCommand и bin/start-prod.sh),
+# либо если образ запустить напрямую через `docker run` без compose.
+CMD ["sh", "bin/start-prod.sh"]

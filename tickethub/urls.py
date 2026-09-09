@@ -16,9 +16,10 @@ Including another URLconf
 """
 
 from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, re_path
+from django.views.generic import RedirectView
+from django.views.static import serve as serve_static
 from ninja import NinjaAPI
 
 from events.api import router as events_router
@@ -37,11 +38,18 @@ api.add_router("/events", events_router)
 api.add_router("/orders", orders_router)
 
 urlpatterns = [
+    path("", RedirectView.as_view(url="/api/docs", permanent=False)),
     path("admin/", admin.site.urls),
     path("api/", api.urls),
 ]
 
-if settings.DEBUG:
-    # Отдаём сгенерированные PDF-билеты напрямую в деве; в проде это была
-    # бы задача nginx/S3, а не Django.
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Раздаём PDF-билеты через сам Django — в том числе и в проде (неделя 5).
+# Обычно так не делают (media в проде — задача nginx/S3/CDN), но здесь
+# это осознанное упрощение: один бесплатный инстанс без выделенного
+# файлового хранилища, трафик пет-проекта копеечный. Используем
+# django.views.static.serve напрямую, а не шорткат static() из
+# django.conf.urls.static — тот сам отказывается работать при
+# DEBUG=False, а нам как раз нужно, чтобы билеты открывались и в проде.
+urlpatterns += [
+    re_path(r"^media/(?P<path>.*)$", serve_static, {"document_root": settings.MEDIA_ROOT}),
+]

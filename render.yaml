@@ -1,0 +1,42 @@
+# Render Blueprint (неделя 5) — бесплатный деплой одним сервисом.
+#
+# Postgres и Redis — НЕ здесь: Render либо не даёт их бесплатно вовсе
+# (Background Worker под Celery — платный), либо даёт с истечением через
+# 30 дней (Postgres). Поэтому база — на Neon (бесплатно навсегда,
+# neon.com), а Redis — на Upstash (бесплатно навсегда, upstash.com);
+# их DATABASE_URL/REDIS_URL прописываются вручную в Render Dashboard
+# (sync: false ниже) после создания обоих. Подробный порядок действий —
+# в README → "Деплой".
+services:
+  - type: web
+    name: tickethub
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: sh bin/start-prod.sh
+    plan: free
+    healthCheckPath: /api/docs
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "false"
+      # Домен вида your-service.onrender.com станет известен после
+      # первого деплоя — впиши его сюда и в CSRF_TRUSTED_ORIGINS,
+      # затем передеплой (Manual Deploy в Render Dashboard).
+      - key: ALLOWED_HOSTS
+        sync: false
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: SEAT_HOLD_TTL_SECONDS
+        value: "300"
+      - key: DJANGO_SUPERUSER_USERNAME
+        sync: false
+      - key: DJANGO_SUPERUSER_EMAIL
+        sync: false
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false
