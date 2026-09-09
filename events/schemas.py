@@ -50,3 +50,18 @@ class HoldSeatOut(Schema):
 
 class ErrorOut(Schema):
     detail: str
+
+
+class PaymentAcceptedOut(Schema):
+    order_id: int
+    status: str
+
+
+class OrderOut(Schema):
+    order_id: int
+    status: str
+    event_id: int
+    seat_id: int
+    buyer_email: str
+    ticket_code: str | None = None
+    ticket_pdf_url: str | None = None

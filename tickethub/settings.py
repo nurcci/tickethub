@@ -134,10 +134,17 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
+# Сгенерированные PDF-билеты (неделя 4, events/services.py). В деве и
+# в этом дев-контейнере хранятся прямо на диске — для реального продакшена
+# сюда бы встал S3-совместимый storage, но для пет-проекта это лишнее.
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
 
 # Redis + Celery (неделя 3: блокировка мест, фоновая очистка просроченных
 # холдов). REDIS_URL используется и напрямую (events/redis_client.py —
@@ -163,4 +170,3 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": 60.0,  # раз в минуту — см. диаграмму в README
     },
 }
-

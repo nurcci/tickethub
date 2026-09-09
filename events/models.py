@@ -76,6 +76,7 @@ class Order(models.Model):
         max_length=10, choices=Status.choices, default=Status.HOLD
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         constraints = [
@@ -94,12 +95,14 @@ class Order(models.Model):
 
 class Ticket(models.Model):
     """Билет — итоговый артефакт после оплаты заказа. Выпускается
-    Celery-таской (неделя 4), здесь заранее закладываем модель.
+    Celery-таской generate_ticket_pdf_task сразу после подтверждения
+    оплаты (events/tasks.py, events/services.py).
     """
 
     order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name="ticket")
     code = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     issued_at = models.DateTimeField(auto_now_add=True)
+    pdf_file = models.FileField(upload_to="tickets/", blank=True, null=True)
 
     def __str__(self) -> str:
         return f"Билет {self.code} ({self.order})"

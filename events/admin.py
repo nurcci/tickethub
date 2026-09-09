@@ -37,7 +37,7 @@ class SeatAdmin(admin.ModelAdmin):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ("id", "event", "seat", "buyer_email", "status", "created_at")
+    list_display = ("id", "event", "seat", "buyer_email", "status", "created_at", "paid_at")
     list_filter = ("status", "event")
     search_fields = ("buyer_email",)
     autocomplete_fields = ["event", "seat"]
@@ -45,5 +45,5 @@ class OrderAdmin(admin.ModelAdmin):
 
 @admin.register(Ticket)
 class TicketAdmin(admin.ModelAdmin):
-    list_display = ("code", "order", "issued_at")
+    list_display = ("code", "order", "issued_at", "pdf_file")
     search_fields = ("code",)
