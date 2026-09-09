@@ -46,7 +46,7 @@ Celery beat — задача `events.tasks.release_expired_holds`.
 Бизнес-логика вынесена в сервисный слой `events/services.py` — и API,
 и Celery-таски дёргают одни и те же функции, а не дублируют проверки.
 
-## Запуск локально
+## Запуск локальнов
 
     docker compose up -d --build
     docker compose exec web python manage.py createsuperuser
@@ -72,15 +72,26 @@ Swagger-документация API: http://localhost:8002/api/docs
 не проседает при параллельных запросах (см. также `events/test_hold.py`,
 где то же самое проверяется двумя корутинами в pytest).
 
+Отдельно — точечный стресс-тест `events/stress_test.py`: 50 параллельных
+потоков через `Django test.Client` бьются за ОДНОД и то же место (без
+сети, но с настоящими Postgres и Redis внутри контейнера):
+
+    docker compose exec -T web python manage.py shell < events/stress_test.py
+
+Реальный результат прогона: `Counter({409: 49, 200: 1})` — из 50
+одновременных попыток прошла ровно одна, все остальные корректно
+получили `409 Conflict`. Это и есть то самое ядро проекта из первого
+абзаца, подтверждённое цифрами, а не только словами.
+
 ## Деплой (неделя 5)
 
 Бесплатно, без карты, без ограничения по времени — тремя сервисами:
 
 - **Render** (render.yaml, Blueprint) — веб-процесс (gunicorn). Бесплатный
   тариф Render не даёт отдельный процесс под Celery worker (Background
-  Worker там платный, от $7/мес) — поэтому worker и beat запускаются в
+  Worker там платный, от $7/мес) — поэтому worker и ؘeat запускаются в
   фоне того же контейнера, что и веб-сервер (`bin/start-prod.sh`). Это
-  осознанный компромисс ради $0 хостинга для пет-проекта: в
+  осознанный компромисс ради Р о хостинга для пет-проекта: в
   docker-compose.yml (и в реальном проде) это три независимых процесса,
   масштабируемых по отдельности.
 - **Neon** (neon.com) — PostgreSQL, бесплатно навсегда (не триал), без
@@ -95,12 +106,12 @@ Swagger-документация API: http://localhost:8002/api/docs
    ближайший к региону Render) → скопировать TLS-адрес
    (`rediss://...`), НЕ обычный `redis://`.
 3. **Render**: зарегистрироваться → New → Blueprint → подключить репозиторий
-   `nurcci/tickethub` — Render сам найдёт `render.yaml` и предложит создать
-   сервис.
+   `nurcci/tickethub` — Render сам найдёт `render.yaml` и предложит создатьазадать
+сервиса.
 4. В Render Dashboard → Environment для сервиса `tickethub` задать:
    `DATABASE_URL` (из Neon), `REDIS_URL` (из Upstash, `rediss://`),
    `DJANGO_SUPERUSER_USERNAME` / `_EMAIL` / `_PASSWORD` (для первого
-   входа в Admin — бесплатный тариф Render не даёт Shell, поэтому
+  входа в Admin — бесплатный тариф Render не даёт Shell, поэтому
    суперюзер создаётся автоматически при старте, см.
    `bin/start-prod.sh`).
 5. Deploy. После первого успешного деплоя Render покажет присвоенный
@@ -112,4 +123,4 @@ Swagger-документация API: http://localhost:8002/api/docs
 
 Бесплатный веб-сервис Render засыпает после 15 минут без запросов и
 просыпается ~30-60 секунд на первый запрос — ожидаемое поведение
-бесплатного демо, не баг.
+бесплатного демп, не баг.
