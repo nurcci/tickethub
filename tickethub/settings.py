@@ -44,6 +44,15 @@ CSRF_TRUSTED_ORIGINS = [
     o for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if o
 ]
 
+# Render сам знает свой домен и передаёт его в RENDER_EXTERNAL_HOSTNAME —
+# подхватываем на всякий случай, чтобы деплой не зависел от того, что
+# вручную вписано в ALLOWED_HOSTS/CSRF_TRUSTED_ORIGINS в Dashboard (иначе
+# даже health check Render не пройдёт с DisallowedHost).
+_render_host = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+if _render_host and _render_host not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(_render_host)
+    CSRF_TRUSTED_ORIGINS.append(f"https://{_render_host}")
+
 # прод-харденинг — только при DEBUG=False, иначе редирект на HTTPS
 # сломает локальный docker compose (там всё по HTTP)
 if not DEBUG:
