@@ -20,7 +20,11 @@ if [ -n "$DJANGO_SUPERUSER_USERNAME" ]; then
 fi
 
 echo "==> Запускаю Celery worker + beat в фоне"
-celery -A tickethub worker -B -l info &
+# Free-тариф Render — всего 512 МБ RAM на контейнер. Дефолтный prefork-пул
+# форкает по одному процессу на ядро (тут 8) — на такой памяти это верный
+# OOM. --pool=solo держит воркер в одном процессе; для пет-проекта с
+# редкими задачами (оплата, PDF) этого хватает с запасом.
+celery -A tickethub worker -B -l info --concurrency=1 --pool=solo &
 
 echo "==> Запускаю gunicorn"
-exec gunicorn tickethub.wsgi:application --bind 0.0.0.0:10000 --workers 2 --threads 2
+exec gunicorn tickethub.wsgi:application --bind 0.0.0.0:10000 --workers 1 --threads 2
