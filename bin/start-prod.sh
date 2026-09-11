@@ -19,6 +19,9 @@ if [ -n "$DJANGO_SUPERUSER_USERNAME" ]; then
     python manage.py createsuperuser --noinput || true
 fi
 
+echo "==> Наполняю демо-данными (если база пустая)"
+python manage.py seed_demo
+
 echo "==> Запускаю Celery worker + beat в фоне"
 # Free-тариф Render — всего 512 МБ RAM на контейнер. Дефолтный prefork-пул
 # форкает по одному процессу на ядро (тут 8) — на такой памяти это верный
